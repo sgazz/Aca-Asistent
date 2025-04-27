@@ -12,8 +12,10 @@ class ChatViewModel: ObservableObject {
     private var db = Firestore.firestore()
     private var listener: ListenerRegistration?
     private var cancellables = Set<AnyCancellable>()
+    private let aiService: AIServiceProtocol
     
-    init() {
+    init(aiService: AIServiceProtocol = AIService()) {
+        self.aiService = aiService
         setupMessagesListener()
     }
     
@@ -73,6 +75,7 @@ class ChatViewModel: ObservableObject {
             "attachments": message.attachments as Any
         ]
         
+        // Sačuvaj korisničku poruku
         db.collection("users")
             .document(userId)
             .collection("messages")
@@ -82,24 +85,29 @@ class ChatViewModel: ObservableObject {
                     return
                 }
                 self?.currentMessage = ""
-                self?.simulateAIResponse()
+                
+                // Generiši AI odgovor
+                Task { [weak self] in
+                    await self?.generateAIResponse(to: message.content)
+                }
             }
     }
     
-    private func simulateAIResponse() {
+    @MainActor
+    private func generateAIResponse(to message: String) async {
         isLoading = true
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self = self else { return }
+        do {
+            let response = try await aiService.generateResponse(to: message)
             
             guard let userId = Auth.auth().currentUser?.uid else {
-                self.error = "Korisnik nije autentifikovan"
-                self.isLoading = false
+                error = "Korisnik nije autentifikovan"
+                isLoading = false
                 return
             }
             
             let aiMessage = Message(
-                content: "Ovo je simulirani odgovor AI asistenta. Ovo će biti zamenjeno sa pravim LLAMA modelom.",
+                content: response,
                 isUser: false,
                 timestamp: Date()
             )
@@ -112,16 +120,16 @@ class ChatViewModel: ObservableObject {
                 "attachments": aiMessage.attachments as Any
             ]
             
-            self.db.collection("users")
+            try await db.collection("users")
                 .document(userId)
                 .collection("messages")
-                .addDocument(data: messageData) { [weak self] error in
-                    if let error = error {
-                        self?.error = "Greška pri slanju AI odgovora: \(error.localizedDescription)"
-                    }
-                    self?.isLoading = false
-                }
+                .addDocument(data: messageData)
+            
+        } catch {
+            self.error = "Greška pri generisanju AI odgovora: \(error.localizedDescription)"
         }
+        
+        isLoading = false
     }
     
     deinit {
