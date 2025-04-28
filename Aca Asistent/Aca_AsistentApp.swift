@@ -35,9 +35,7 @@ struct Aca_AsistentApp: App {
     
     var body: some Scene {
         WindowGroup {
-            NavigationView {
-                AuthView()
-            }
+            AuthView()
         }
     }
 }
