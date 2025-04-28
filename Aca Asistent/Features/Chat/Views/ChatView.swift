@@ -1,8 +1,17 @@
 import SwiftUI
+import UniformTypeIdentifiers
+import PDFKit
 
 struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @Environment(\.colorScheme) var colorScheme
+    @State private var isDocumentPickerPresented = false
+    @State private var selectedPDFName: String?
+    @State private var selectedPDFUrl: URL?
+    @State private var isPDFViewerPresented = false
+    @State private var uploadStatus: UploadStatus? = nil
+    @State private var showPDFList = false
+    enum UploadStatus { case uploading, success, error(String) }
     
     var body: some View {
         GeometryReader { geometry in
@@ -35,6 +44,25 @@ struct ChatView: View {
                     .background(Color.white.opacity(0.05).blur(radius: 0.5))
                     .clipShape(RoundedRectangle(cornerRadius: isWide ? 28 : 18, style: .continuous))
                     .shadow(color: Color.black.opacity(0.12), radius: isWide ? 16 : 8, y: 4)
+                    // Toolbar
+                    HStack {
+                        Spacer()
+                        Button {
+                            showPDFList = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "doc.text.fill")
+                                Text("PDF dokumenti")
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color.accentColor)
+                            .foregroundColor(.white)
+                            .cornerRadius(20)
+                        }
+                        .padding(.trailing)
+                    }
+                    .padding(.top)
                     // Messages
                     ScrollViewReader { proxy in
                         ScrollView {
@@ -59,6 +87,54 @@ struct ChatView: View {
                     VStack(spacing: 0) {
                         Divider().background(Color.white.opacity(0.1))
                         HStack(spacing: isWide ? 24 : 12) {
+                            // PDF upload button
+                            Button {
+                                isDocumentPickerPresented = true
+                            } label: {
+                                Image(systemName: "paperclip")
+                                    .font(.system(size: isWide ? 32 : 24))
+                                    .foregroundColor(.accentColor)
+                            }
+                            .padding(.trailing, 4)
+                            .fileImporter(
+                                isPresented: $isDocumentPickerPresented,
+                                allowedContentTypes: [UTType.pdf],
+                                allowsMultipleSelection: false
+                            ) { result in
+                                switch result {
+                                case .success(let urls):
+                                    if let url = urls.first {
+                                        selectedPDFName = url.lastPathComponent
+                                        selectedPDFUrl = url
+                                        // Prvo upload PDF na Firebase
+                                        uploadStatus = .uploading
+                                        viewModel.uploadPDF(url: url) { result in
+                                            DispatchQueue.main.async {
+                                                switch result {
+                                                case .success:
+                                                    uploadStatus = .success
+                                                    // Otvori PDF viewer tek nakon uspešnog upload-a
+                                                    isPDFViewerPresented = true
+                                                case .failure(let error):
+                                                    uploadStatus = .error(error.localizedDescription)
+                                                    isPDFViewerPresented = false
+                                                }
+                                            }
+                                        }
+                                    }
+                                case .failure(let error):
+                                    print("Failed to pick PDF: \(error.localizedDescription)")
+                                }
+                            }
+                            // Prikaz imena izabranog PDF-a
+                            if let pdfName = selectedPDFName {
+                                Text(pdfName)
+                                    .font(.caption)
+                                    .foregroundColor(.white.opacity(0.7))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            // TextField za poruku
                             TextField("Enter your message...", text: $viewModel.currentMessage)
                                 .padding(isWide ? 20 : 14)
                                 .background(.ultraThinMaterial)
@@ -97,6 +173,42 @@ struct ChatView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color.black.opacity(0.2))
                 }
+                if let status = uploadStatus {
+                    switch status {
+                    case .uploading:
+                        ZStack {
+                            Color.black.opacity(0.3).ignoresSafeArea()
+                            ProgressView("Uploading PDF...")
+                                .padding()
+                                .background(Color.white.opacity(0.9))
+                                .cornerRadius(12)
+                        }
+                    case .success:
+                        ZStack {
+                            Color.black.opacity(0.3).ignoresSafeArea()
+                            VStack(spacing: 12) {
+                                Image(systemName: "checkmark.circle.fill").foregroundColor(.green).font(.largeTitle)
+                                Text("PDF uploaded successfully!").foregroundColor(.green)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.9))
+                            .cornerRadius(12)
+                        }
+                        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { uploadStatus = nil } }
+                    case .error(let msg):
+                        ZStack {
+                            Color.black.opacity(0.3).ignoresSafeArea()
+                            VStack(spacing: 12) {
+                                Image(systemName: "xmark.octagon.fill").foregroundColor(.red).font(.largeTitle)
+                                Text("Upload failed: \(msg)").foregroundColor(.red)
+                            }
+                            .padding()
+                            .background(Color.white.opacity(0.9))
+                            .cornerRadius(12)
+                        }
+                        .onAppear { DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { uploadStatus = nil } }
+                    }
+                }
             }
             .alert("Error", isPresented: .constant(viewModel.error != nil)) {
                 Button("OK") {
@@ -104,6 +216,14 @@ struct ChatView: View {
                 }
             } message: {
                 Text(viewModel.error ?? "")
+            }
+            .sheet(isPresented: $isPDFViewerPresented) {
+                if let url = selectedPDFUrl {
+                    PDFViewer(url: url)
+                }
+            }
+            .sheet(isPresented: $showPDFList) {
+                PDFListView()
             }
         }
     }

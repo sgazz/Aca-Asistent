@@ -1,0 +1,29 @@
+// Firestore Rules
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Zadržavamo postojeća pravila za Firestore
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 5, 28);
+    }
+  }
+}
+
+// Storage Rules
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Pravila za PDF fajlove u korisničkim folderima
+    match /users/{userId}/pdfs/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.contentType.matches('application/pdf');
+    }
+    
+    // Opšta pravila za ostale fajlove
+    match /{allPaths=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+} 

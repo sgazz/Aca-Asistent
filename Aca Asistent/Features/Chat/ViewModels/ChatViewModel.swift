@@ -2,6 +2,7 @@ import Foundation
 import FirebaseAuth
 import FirebaseFirestore
 import Combine
+import FirebaseStorage
 
 class ChatViewModel: ObservableObject {
     @Published var messages: [Message] = []
@@ -137,6 +138,114 @@ class ChatViewModel: ObservableObject {
         }
         
         isLoading = false
+    }
+    
+    func uploadPDF(url: URL, completion: @escaping (Result<Void, Error>) -> Void) {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            completion(.failure(NSError(domain: "No user", code: 0)))
+            return
+        }
+        
+        let fileName = url.lastPathComponent
+        
+        // Dobavljanje Storage instance sa ispravnim bucket-om
+        let storage = Storage.storage()
+        let bucket = storage.reference().bucket
+        print("Using bucket: \(bucket)")
+        
+        // Kreiranje reference
+        let storageRef = storage.reference(forURL: "gs://\(bucket)")
+        
+        print("Storage reference created")
+        
+        // Kreiranje putanje za PDF
+        let pdfPath = "users/\(userId)/pdfs/\(fileName)"
+        let pdfRef = storageRef.child(pdfPath)
+            
+        print("Attempting to upload PDF...")
+        print("Full path: \(pdfRef.fullPath)")
+        print("Bucket: \(bucket)")
+        
+        let accessed = url.startAccessingSecurityScopedResource()
+        defer { if accessed { url.stopAccessingSecurityScopedResource() } }
+        
+        do {
+            let data = try Data(contentsOf: url)
+            print("Data size: \(data.count) bytes")
+            
+            // Postavljanje metadata sa dodatnim informacijama
+            let metadata = StorageMetadata()
+            metadata.contentType = "application/pdf"
+            metadata.customMetadata = [
+                "uploadedBy": userId,
+                "originalName": fileName
+            ]
+            
+            let uploadTask = pdfRef.putData(data, metadata: metadata) { [weak self] metadata, error in
+                if let error = error {
+                    print("Upload error details: \(error)")
+                    let nsError = error as NSError
+                    print("Error code: \(nsError.code), domain: \(nsError.domain)")
+                    if let underlyingError = nsError.userInfo[NSUnderlyingErrorKey] as? Error {
+                        print("Underlying error: \(underlyingError)")
+                    }
+                    completion(.failure(error))
+                    return
+                }
+                
+                print("Upload completed, metadata: \(String(describing: metadata))")
+                
+                pdfRef.downloadURL { url, error in
+                    if let error = error {
+                        print("Download URL error: \(error.localizedDescription)")
+                        completion(.failure(error))
+                        return
+                    }
+                    
+                    guard let downloadURL = url else {
+                        completion(.failure(NSError(domain: "No download URL", code: 0)))
+                        return
+                    }
+                    
+                    print("Download URL obtained: \(downloadURL.absoluteString)")
+                    
+                    // Sačuvaj meta podatke u Firestore
+                    let docData: [String: Any] = [
+                        "name": fileName,
+                        "url": downloadURL.absoluteString,
+                        "uploadedAt": Timestamp(date: Date()),
+                        "userId": userId,
+                        "size": data.count,
+                        "path": pdfPath
+                    ]
+                    
+                    self?.db.collection("users")
+                        .document(userId)
+                        .collection("pdfs")
+                        .addDocument(data: docData) { error in
+                            if let error = error {
+                                print("Firestore error: \(error.localizedDescription)")
+                                completion(.failure(error))
+                            } else {
+                                print("PDF successfully uploaded and metadata saved")
+                                completion(.success(()))
+                            }
+                        }
+                }
+            }
+            
+            // Dodajemo progress observer
+            uploadTask.observe(.progress) { snapshot in
+                if let progress = snapshot.progress {
+                    let percentComplete = 100.0 * Double(progress.completedUnitCount) / Double(progress.totalUnitCount)
+                    print("Upload progress: \(percentComplete)%")
+                }
+            }
+            
+        } catch {
+            print("Local file error: \(error.localizedDescription)")
+            completion(.failure(error))
+        }
     }
     
     deinit {
