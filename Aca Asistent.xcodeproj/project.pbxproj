@@ -169,6 +169,8 @@
 /* Begin XCBuildConfiguration section */
 		CF5868352DBEAD3C00F99165 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = CF58682E2DBEAD3B00F99165 /* Aca Asistent */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -233,6 +235,8 @@
 		};
 		CF5868362DBEAD3C00F99165 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = CF58682E2DBEAD3B00F99165 /* Aca Asistent */;
+			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -298,6 +302,7 @@
 				DEVELOPMENT_TEAM = 83F7KY8L5Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Aca-Asistent-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Aca Asistent";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -328,6 +333,7 @@
 				DEVELOPMENT_TEAM = 83F7KY8L5Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "Aca-Asistent-Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = "Aca Asistent";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

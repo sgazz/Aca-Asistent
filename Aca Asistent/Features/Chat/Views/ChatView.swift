@@ -18,7 +18,7 @@ struct ChatView: View {
                 VStack(spacing: 0) {
                     // Header
                     HStack {
-                        Text("AI Asistent")
+                        Text("AI Assistant")
                             .font(isWide ? .largeTitle : .title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -59,7 +59,7 @@ struct ChatView: View {
                     VStack(spacing: 0) {
                         Divider().background(Color.white.opacity(0.1))
                         HStack(spacing: isWide ? 24 : 12) {
-                            TextField("Unesite poruku...", text: $viewModel.currentMessage)
+                            TextField("Enter your message...", text: $viewModel.currentMessage)
                                 .padding(isWide ? 20 : 14)
                                 .background(.ultraThinMaterial)
                                 .foregroundColor(.white)
@@ -98,7 +98,7 @@ struct ChatView: View {
                         .background(Color.black.opacity(0.2))
                 }
             }
-            .alert("Greška", isPresented: .constant(viewModel.error != nil)) {
+            .alert("Error", isPresented: .constant(viewModel.error != nil)) {
                 Button("OK") {
                     viewModel.error = nil
                 }

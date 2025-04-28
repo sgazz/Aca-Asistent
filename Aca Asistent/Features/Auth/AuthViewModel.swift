@@ -78,7 +78,7 @@ class AuthViewModel: ObservableObject {
                     self?.error = error.localizedDescription
                     return
                 }
-                // Pošalji email za verifikaciju
+                // Send verification email
                 result?.user.sendEmailVerification(completion: { error in
                     DispatchQueue.main.async {
                         if let error = error {

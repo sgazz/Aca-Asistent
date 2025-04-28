@@ -14,14 +14,17 @@ class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let aiService: AIServiceProtocol
     
-    init(aiService: AIServiceProtocol = AIService()) {
-        self.aiService = aiService
+    init() {
+        // Učitaj OpenAI API ključ iz Info.plist
+        let openAIKey = Bundle.main.infoDictionary?["OPENAI_API_KEY"] as? String ?? ""
+        print("OPENAI_API_KEY iz konfiguracije: \(openAIKey)")
+        self.aiService = OpenAIService(apiKey: openAIKey)
         setupMessagesListener()
     }
     
     private func setupMessagesListener() {
         guard let userId = Auth.auth().currentUser?.uid else {
-            error = "Korisnik nije autentifikovan"
+            error = "User is not authenticated"
             return
         }
         
@@ -31,12 +34,12 @@ class ChatViewModel: ObservableObject {
             .order(by: "timestamp", descending: false)
             .addSnapshotListener { [weak self] snapshot, error in
                 if let error = error {
-                    self?.error = "Greška pri učitavanju poruka: \(error.localizedDescription)"
+                    self?.error = "Error loading messages: \(error.localizedDescription)"
                     return
                 }
                 
                 guard let documents = snapshot?.documents else {
-                    self?.error = "Nema dostupnih poruka"
+                    self?.error = "No messages available"
                     return
                 }
                 
@@ -57,7 +60,7 @@ class ChatViewModel: ObservableObject {
     func sendMessage() {
         guard !currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard let userId = Auth.auth().currentUser?.uid else {
-            error = "Korisnik nije autentifikovan"
+            error = "User is not authenticated"
             return
         }
         
@@ -75,18 +78,18 @@ class ChatViewModel: ObservableObject {
             "attachments": message.attachments as Any
         ]
         
-        // Sačuvaj korisničku poruku
+        // Save user message
         db.collection("users")
             .document(userId)
             .collection("messages")
             .addDocument(data: messageData) { [weak self] error in
                 if let error = error {
-                    self?.error = "Greška pri slanju poruke: \(error.localizedDescription)"
+                    self?.error = "Error sending message: \(error.localizedDescription)"
                     return
                 }
                 self?.currentMessage = ""
                 
-                // Generiši AI odgovor
+                // Generate AI response
                 Task { [weak self] in
                     await self?.generateAIResponse(to: message.content)
                 }
@@ -101,7 +104,7 @@ class ChatViewModel: ObservableObject {
             let response = try await aiService.generateResponse(to: message)
             
             guard let userId = Auth.auth().currentUser?.uid else {
-                error = "Korisnik nije autentifikovan"
+                error = "User is not authenticated"
                 isLoading = false
                 return
             }
@@ -126,7 +129,11 @@ class ChatViewModel: ObservableObject {
                 .addDocument(data: messageData)
             
         } catch {
-            self.error = "Greška pri generisanju AI odgovora: \(error.localizedDescription)"
+            if let aiError = error as? AIError, case let .serverError(message) = aiError {
+                self.error = "AI error: \(message)"
+            } else {
+                self.error = "Error generating AI response: \(error.localizedDescription)"
+            }
         }
         
         isLoading = false
